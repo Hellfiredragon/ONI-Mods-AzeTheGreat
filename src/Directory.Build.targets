@@ -18,12 +18,13 @@
   <!--Increment the version number after each build, resetting each day.-->
   <Import Project="AutoIncrement.targets" />
   <Target Name="AutoIncrement" BeforeTargets="PrepareForBuild">
-    <AutoIncrement Path="$(IntermediateOutputPath)">
+    <AutoIncrement Path="$(IntermediateOutputPath)" Condition="'$(MSBuildRuntimeType)' == 'Full'">
       <Output
         PropertyName="ProjectRevision"
         TaskParameter="Revision" />
     </AutoIncrement>
     <PropertyGroup>
+      <ProjectRevision Condition="'$(ProjectRevision)' == ''">1</ProjectRevision>
       <Version>$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day).$(ProjectRevision)</Version>
     </PropertyGroup>
   </Target>
@@ -64,6 +65,7 @@
     </ItemGroup>
     <ILRepack
       TargetPlatformVersion="v4"
+      TargetPlatformDirectory="$(GameFolder)"
 			TargetKind="SameAsPrimaryAssembly"
 			OutputFile="$(TargetPath)"
 			InputAssemblies="@(InputAssemblies)"

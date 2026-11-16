@@ -32,8 +32,8 @@ public class ExportSelectToolData
             return new CodeMatcher(codes)
                 .Do(MatchStart).Insert(CodeInstruction.CallClosure(static (KSelectable selectable) => curSelectable = selectable))
                 .Do(MatchStart).Do(cm => FindInsertGOExport(cm, () => GameUtil.GetUnitFormattedName(null, false), ConverterManager.title))
-                .Do(MatchStart).Do(cm => FindInsertGOExport(cm, () => GameUtil.GetFormattedDisease, ConverterManager.germs))
-                .Do(MatchStart).Do(FindInsertStatusExport).Do(FindInsertStatusExport)
+                .Do(MatchStart).Do(FindInsertGermExport)
+                .Do(MatchStart).Do(FindStatusGroup).Do(FindInsertStatusExport).Do(FindInsertStatusExport)
                 .Do(MatchStart).Do(cm => FindInsertGOExport(cm, () => GameUtil.GetFormattedTemperature, ConverterManager.temp))
                 .InstructionEnumeration();
 
@@ -46,9 +46,21 @@ public class ExportSelectToolData
                 .MatchStartForward(CodeMatch.Calls(target))
                 .Insert(CodeInstruction.CallClosure(() => ExportGO(matchID)));
 
+            // Germ text is built with a KleiStringBuilder, cached in selectableDiseaseTexts, then drawn (since U60-763023).
+            // Export right before that DrawText call.
+            static void FindInsertGermExport(CodeMatcher cm) => cm
+                .MatchStartForward(CodeMatch.LoadsField(AccessTools.Field(typeof(SelectToolHoverTextCard), nameof(SelectToolHoverTextCard.selectableDiseaseTexts))))
+                .MatchStartForward(CodeMatch.Calls(AccessTools.Method(typeof(HoverTextDrawer), nameof(HoverTextDrawer.DrawText), [typeof(string), typeof(TextStyleSetting)])))
+                .Insert(CodeInstruction.CallClosure(() => ExportGO(ConverterManager.germs)));
+
             // StatusItemGroup.Entry GetName is a better target, but it loads the entry as an address which is harder to work with.
+            // Since U60-763023 there is a single GetStatusItemGroup call followed by two loops
+            // (Main category, then everything else). Each loop checks entry.category before drawing.
+            static void FindStatusGroup(CodeMatcher cm) => cm
+                .MatchStartForward(CodeMatch.Calls((KSelectable _) => _.GetStatusItemGroup));
+
             static void FindInsertStatusExport(CodeMatcher cm) => cm
-                .MatchStartForward(CodeMatch.Calls((KSelectable _) => _.GetStatusItemGroup))
+                .MatchStartForward(CodeMatch.LoadsField(AccessTools.Field(typeof(StatusItemGroup.Entry), nameof(StatusItemGroup.Entry.category))))
                 .MatchStartForward(CodeMatch.Calls((SelectToolHoverTextCard _) => _.IsStatusItemWarning))
                 .InsertAndAdvance(CodeInstruction.CallClosure(static (StatusItemGroup.Entry entry) =>
                 {
